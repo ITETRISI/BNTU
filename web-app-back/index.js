@@ -393,9 +393,9 @@ app.post('/sec-group', verify, async (req, res) => {
     const sec = await pool.query('INSERT INTO sec_group (sec_id, group_id) VALUES ($2,$1)',[groupId,secId])
     const students = await pool.query(`SELECT * FROM students WHERE group_id = $1`,[groupId])
     console.log(students.rows[0])
-    for await (let student of students.rows){
-      await pool.query('INSERT INTO students_marks (student_id,group_id) VALUES ($1,$2)',[student.user_id, groupId])
-    }
+    // for await (let student of students.rows){
+    //   await pool.query('INSERT INTO students_marks (student_id,group_id) VALUES ($1,$2)',[student.user_id, groupId])
+    // }
     res.json(sec.rows)
   } catch (error) {
     console.log(error.message)
@@ -425,8 +425,12 @@ app.put('/sec-group/', verify, async (req, res) => {
 
 app.post('/sec-percent', verify, async (req, res) => {
   try {
-    const {name,percentPlane,comment, fromDate, toDate, secId} = req.body;
+    const {name,percentPlane,comment, fromDate, toDate, secId,students} = req.body;
     const percentage = await pool.query('INSERT INTO percentage (comment,name,start_date,end_date,sec_id,plan_percent) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id_percentage',[comment,name,fromDate,toDate,secId,percentPlane,])
+    for await(let student of students){
+      console.log(student)
+      await pool.query('INSERT INTO students_marks (percent_id,student_id) values ($1,$2)',[percentage.rows[0].id_percentage, student])
+    }
     res.json(percentage.rows)
   } catch (error) {
     console.log(error.message)
@@ -447,6 +451,7 @@ app.delete('/sec-percent/:id', verify, async (req, res) => {
   try {
     const id = req.params.id
     await pool.query('DELETE FROM percentage WHERE id_percentage = $1',[id])
+    await pool.query('DELETE FROM students_marks WHERE percent_id = $1',[id])
     res.json('sec was delete')
   } catch (error) {
     console.log(error.message)
@@ -455,8 +460,13 @@ app.delete('/sec-percent/:id', verify, async (req, res) => {
 
 app.put('/sec-percent', verify, async (req, res) => {
   try {
-    const {name,percentPlane,comment, fromDate, toDate, percentId} = req.body;
-    const sec = await pool.query('UPDATE percentage SET comment = $1, name = $2, start_date = $3, end_date = $4, plan_percent = $5  WHERE id_percentage = $6',[comment,name,fromDate,toDate,percentPlane,percentId,])
+    const {name,percentPlane,comment, fromDate, toDate, percentId,students} = req.body;
+    const sec = await pool.query('UPDATE percentage SET comment = $1, name = $2, start_date = $3, end_date = $4, plan_percent = $5  WHERE id_percentage = $6 ',[comment,name,fromDate,toDate,percentPlane,percentId,])
+    await pool.query('DELETE FROM students_marks WHERE percent_id = $1',[percentId])
+    for await(let student of students){
+      console.log(student)
+      await pool.query('INSERT INTO students_marks (percent_id,student_id) values ($1,$2)',[percentId, student])
+    }
     res.json(sec.rows)
   } catch (error) {
     console.log(error.message)
@@ -465,8 +475,12 @@ app.put('/sec-percent', verify, async (req, res) => {
 
 app.post('/sec-event', verify, async (req, res) => {
   try {
-    const {address,selectedGroup,model,time, secId} = req.body;
-    const sec = await pool.query('INSERT INTO sec_event (address,date,end_date,sec_id,group_id) VALUES ($1,$2,$3,$4,$5)',[address,model,time,secId,selectedGroup])
+    const {address,selectedGroup,model,time, secId, students} = req.body;
+    const sec = await pool.query('INSERT INTO sec_event (address,date,end_date,sec_id,group_id) VALUES ($1,$2,$3,$4,$5) RETURNING id_sec_event',[address,model,time,secId,selectedGroup])
+    for await(let student of students){
+      console.log(student)
+      await pool.query('INSERT INTO students_marks (sec_event_id,student_id) values ($1,$2)',[sec.rows[0].id_sec_event, student])
+    }
     res.json(sec.rows)
   } catch (error) {
     console.log(error.message)
@@ -486,7 +500,8 @@ app.get('/sec-event/:id', verify, async (req, res) => {
 app.delete('/sec-event/:id', verify, async (req, res) => {
   try {
     const id = req.params.id
-    await pool.query('DELETE FROM sec_event WHERE id_sec_event = $1',[id])
+    await pool.query('DELETE FROM sec_event WHERE id_sec_event = $1',[id]);
+    await pool.query('DELETE FROM students_marks WHERE sec_event_id = $1',[id])
     res.json('sec was delete')
   } catch (error) {
     console.log(error.message)
@@ -495,9 +510,14 @@ app.delete('/sec-event/:id', verify, async (req, res) => {
 
 app.put('/sec-event', verify, async (req, res) => {
   try {
-    const {address,selectedGroup,model,time, eventId} = req.body;
+    const {address,selectedGroup,model,time, eventId,students} = req.body;
     console.log(eventId)
     const sec = await pool.query('UPDATE sec_event SET address = $1, date = $2, end_date = $3, group_id = $4 WHERE id_sec_event = $5',[address,model,time,selectedGroup,eventId])
+    await pool.query('DELETE FROM students_marks WHERE sec_event_id = $1',[eventId]);
+    for await(let student of students){
+      console.log(student)
+      await pool.query('INSERT INTO students_marks (sec_event_id,student_id) values ($1,$2)',[eventId, student])
+    }
     res.json(sec.rows)
   } catch (error) {
     console.log(error.message)
@@ -564,10 +584,34 @@ app.get('/sec-users-percents/:id', verify, async (req, res) => {
   }
 })
 
+
 app.get('/sec-students/:id', verify, async (req, res) => {
   try {
     const id = req.params.id;
-    const students = await pool.query(`SELECT * FROM students INNER JOIN students_marks ON students.user_id = students_marks.student_id INNER JOIN users ON users.user_id = students.user_id WHERE students_marks.group_id = $1`,[id])
+    console.log(id)
+    const students = await pool.query(`SELECT * FROM students INNER JOIN users ON users.user_id = students.user_id WHERE students.group_id = $1`,[id])
+    res.json(students.rows)
+  } catch (error) {
+    console.log(error.message)
+  }
+})
+
+app.get('/sec-students-percent/:id', verify, async (req, res) => {
+  try {
+    const id = req.params.id;
+    console.log(id)
+    const students = await pool.query(`SELECT * FROM students INNER JOIN users ON users.user_id = students.user_id INNER JOIN students_marks ON students.user_id = students_marks.student_id  WHERE students_marks.percent_id = $1`,[id])
+    res.json(students.rows)
+  } catch (error) {
+    console.log(error.message)
+  }
+})
+
+app.get('/sec-students-event/:id', verify, async (req, res) => {
+  try {
+    const id = req.params.id;
+    console.log(id)
+    const students = await pool.query(`SELECT * FROM students INNER JOIN users ON users.user_id = students.user_id INNER JOIN students_marks ON students.user_id = students_marks.student_id  WHERE students_marks.sec_event_id = $1`,[id])
     res.json(students.rows)
   } catch (error) {
     console.log(error.message)
