@@ -35,7 +35,7 @@ app.post('/study', async (req, res) => {
   }
 })
 
-app.post('/register', async (req, res) => {
+app.post('/register-user', async (req, res) => {
   try {
     const {
       userLogin,
@@ -100,13 +100,7 @@ app.post('/log-in', async (req, res) => {
 })
 
 
-app.get('/user-data', verify, async (req, res) => {
-  const user = await pool.query('SELECT * FROM users WHERE user_id = $1 ', [req.user.id]);
-  const userRoleId = await pool.query('SELECT role_id FROM users_roles WHERE user_id = $1 ', [req.user.id]);
-  const roleName = await pool.query('SELECT role_name FROM roles WHERE role_id = $1 ', [userRoleId.rows[0].role_id]);
-  user.rows[0].role = roleName.rows[0].role_name;
-  res.json(user.rows[0])
-})
+
 
 
 app.get('/users', verify, async (req, res) => {
@@ -125,6 +119,13 @@ app.put('/user/role', verify, async(req,res) => {
   }
 })
 
+app.get('/user-data', verify, async (req, res) => {
+  const user = await pool.query('SELECT * FROM users WHERE user_id = $1 ', [req.user.id]);
+  const userRoleId = await pool.query('SELECT role_id FROM users_roles WHERE user_id = $1 ', [req.user.id]);
+  const roleName = await pool.query('SELECT role_name FROM roles WHERE role_id = $1 ', [userRoleId.rows[0].role_id]);
+  user.rows[0].role = roleName.rows[0].role_name;
+  res.json(user.rows[0])
+})
 
 app.put('/user/:id', verify, async(req,res) => {
   try {
